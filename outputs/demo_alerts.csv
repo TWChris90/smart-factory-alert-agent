@@ -1,0 +1,3 @@
+timestamp,temp,pressure,vibration,score,source,reasons,suggestions
+2024-06-03 19:13:00,47.98319884249571,1.0296612419359017,0.0938003802161503,14.046177571120205,fixed-threshold+combination-pattern,vibration above limit (0.094),"Inspect rotating components, mounting, and vibration sensor health."
+2024-06-03 19:17:00,48.06603069756122,1.038951476209342,0.0791543450670307,10.462382002411951,fixed-threshold+combination-pattern,vibration above limit (0.079),"Inspect rotating components, mounting, and vibration sensor health."
