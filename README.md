@@ -43,15 +43,19 @@ CSV 必須包含：`timestamp`, `temp`, `pressure`, `vibration`；`label` 為選
 
 ## PyOD
 
-實作使用 `pyod.models.knn.KNN(n_neighbors=5)`。補值器、標準化器與 KNN 僅在獨立正常資料上執行 `fit`，並以 joblib 一起保存。待測資料只執行保存前處理器的 `transform` 與 KNN 的 `decision_function`，再使用保存的門檻產生異常標籤。
+實作使用 `pyod.models.knn.KNN(n_neighbors=5)`。補值器、標準化器與 KNN 僅使用 400 筆獨立正常訓練資料執行 `fit`；另外使用 100 筆正常校準資料的異常分數第 99.5 百分位決定門檻。補值器、標準化器、KNN 與門檻會以 joblib 一起保存。待測資料只執行保存前處理器的 `transform` 與 KNN 的 `decision_function`，不參與訓練或門檻校準。
 
 ## Workflow
 
 ```text
-獨立正常資料
+400 筆獨立正常訓練資料
 → fit 中位數補值器與 StandardScaler
-→ fit PyOD KNN 並決定分數門檻
-→ 保存模型
+→ fit PyOD KNN
+
+100 筆獨立正常校準資料
+→ 使用已完成的補值器、StandardScaler 與 KNN 計算分數
+→ 取第 99.5 百分位作為分數門檻
+→ 保存補值器、標準化器、KNN 與門檻
 
 上傳／模擬待測資料
 → 載入保存模型
@@ -62,7 +66,8 @@ CSV 必須包含：`timestamp`, `temp`, `pressure`, `vibration`；`label` 為選
 ## Features
 
 - 依 random seed 隨機產生異常位置、異常類型、異常值與缺值。
-- 使用獨立的正常資料訓練並保存補值器、標準化器、KNN 與分數門檻。
+- 使用 400 筆獨立正常資料訓練補值器、標準化器與 KNN。
+- 使用另外 100 筆獨立正常資料校準分數門檻。
 - 上傳或產生的待測資料只做轉換與推論，不參與模型訓練。
 - 使用中位數補值處理缺失數值。
 - 在 PyOD KNN 推論前進行感測器特徵標準化。
@@ -96,6 +101,7 @@ python smart_factory_alert/src/cli.py --generate
 python smart_factory_alert/src/cli.py --input data/sensor_data.csv
 ```
 
-訓練指令預設產生 1,000 筆獨立正常資料至
-`smart_factory_alert/data/normal_training_data.csv`，並將模型保存至
+訓練指令預設產生 400 筆獨立正常訓練資料至
+`smart_factory_alert/data/normal_training_data.csv`，以及 100 筆獨立正常校準資料至
+`smart_factory_alert/data/normal_calibration_data.csv`。校準資料只用來計算正常分數的第 99.5 百分位門檻，不會拿來訓練模型。模型保存至
 `smart_factory_alert/models/knn_normal_model.joblib`。若預設模型不存在，CLI 與瀏覽器介面會先建立這組獨立模型；模型存在後，每次偵測只會載入，不會重新訓練。

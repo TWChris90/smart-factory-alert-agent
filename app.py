@@ -65,6 +65,7 @@ def _run_detection(csv_path: Path):
         alerts,
         float(model_bundle["score_threshold"]),
         int(model_bundle["training_rows"]),
+        int(model_bundle["calibration_rows"]),
     )
 
 
@@ -324,6 +325,7 @@ def main() -> None:
                 alerts,
                 score_threshold,
                 training_rows,
+                calibration_rows,
             ) = _run_detection(csv_path)
             st.session_state["result"] = {
                 "df": df,
@@ -332,6 +334,7 @@ def main() -> None:
                 "alerts": alerts,
                 "score_threshold": score_threshold,
                 "training_rows": training_rows,
+                "calibration_rows": calibration_rows,
                 "missing_summary": df.attrs.get("missing_summary"),
             }
         except (OSError, ValueError, KeyError) as exc:
@@ -346,11 +349,13 @@ def main() -> None:
     alerts = result["alerts"]
     score_threshold = result.get("score_threshold")
     training_rows = result.get("training_rows")
+    calibration_rows = result.get("calibration_rows")
     missing_summary = result.get("missing_summary")
 
-    if training_rows is not None:
+    if training_rows is not None and calibration_rows is not None:
         st.caption(
-            f"異常辨識模型已使用獨立的 {training_rows} 筆正常資料完成訓練並載入；"
+            f"異常辨識模型已使用 {training_rows} 筆正常資料訓練，並使用另外 "
+            f"{calibration_rows} 筆正常資料校準門檻；"
             "本次待測資料只做偵測，不參與模型訓練。"
         )
 

@@ -227,9 +227,12 @@ def main() -> None:
     transformed_df, scores, labels = detect_sensor_data(processed_df, model_bundle)
     alerts = build_alerts(transformed_df, scores, labels)
     threshold = float(model_bundle["score_threshold"])
+    calibration_rows = int(model_bundle["calibration_rows"])
+    calibration_percentile = float(model_bundle["calibration_percentile"])
     print(
         f"Saved model: {args.model} | combination score threshold: {threshold:.4f} "
-        "(higher = more unusual)"
+        f"({calibration_percentile:g}th percentile of {calibration_rows} "
+        "independent normal calibration scores; higher = more unusual)"
     )
     print(
         f"Processing {len(processed_df)} reading(s) | "

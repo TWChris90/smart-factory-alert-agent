@@ -16,39 +16,61 @@ if __package__:
         load_sensor_data,
         transform_sensor_data,
     )
-    from .pyod_detector import fit_detector, score_anomalies
+    from .pyod_detector import (
+        calibrate_score_threshold,
+        fit_detector,
+        score_anomalies,
+    )
 else:
     from generate_data import generate_normal_sensor_data
     from preprocess import FEATURES, fit_preprocessor, load_sensor_data, transform_sensor_data
-    from pyod_detector import fit_detector, score_anomalies
+    from pyod_detector import calibrate_score_threshold, fit_detector, score_anomalies
 
 PACKAGE_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_TRAINING_DATA_PATH = PACKAGE_DIR / "data" / "normal_training_data.csv"
+DEFAULT_CALIBRATION_DATA_PATH = PACKAGE_DIR / "data" / "normal_calibration_data.csv"
 DEFAULT_MODEL_PATH = PACKAGE_DIR / "models" / "knn_normal_model.joblib"
-DEFAULT_TRAINING_ROWS = 1000
+DEFAULT_TRAINING_ROWS = 400
+DEFAULT_CALIBRATION_ROWS = 100
 DEFAULT_TRAINING_SEED = 20240603
+DEFAULT_CALIBRATION_SEED = 20240604
 DEFAULT_CONTAMINATION = 0.01
-MODEL_VERSION = 1
+DEFAULT_CALIBRATION_PERCENTILE = 99.5
+MODEL_VERSION = 2
 
 
 def train_and_save_model(
     training_csv: Union[str, Path] = DEFAULT_TRAINING_DATA_PATH,
     model_path: Union[str, Path] = DEFAULT_MODEL_PATH,
     *,
+    calibration_csv: Union[str, Path] = DEFAULT_CALIBRATION_DATA_PATH,
     contamination: float = DEFAULT_CONTAMINATION,
+    calibration_percentile: float = DEFAULT_CALIBRATION_PERCENTILE,
     training_seed: int | None = None,
+    calibration_seed: int | None = None,
 ) -> dict[str, Any]:
-    """Train on a normal-only CSV and persist preprocessing, KNN, and threshold."""
+    """Fit on normal training data and calibrate on separate normal data."""
     training_csv = Path(training_csv)
+    calibration_csv = Path(calibration_csv)
     model_path = Path(model_path)
     training_df = load_sensor_data(training_csv)
-    labels = set(training_df["label"].str.lower())
-    if labels != {"normal"}:
+    calibration_df = load_sensor_data(calibration_csv)
+    training_labels = set(training_df["label"].str.lower())
+    calibration_labels = set(calibration_df["label"].str.lower())
+    if training_labels != {"normal"}:
         raise ValueError("Training data must contain only rows labeled 'normal'")
+    if calibration_labels != {"normal"}:
+        raise ValueError("Calibration data must contain only rows labeled 'normal'")
 
     imputer, scaler = fit_preprocessor(training_df)
     _, X_train = transform_sensor_data(training_df, imputer, scaler)
-    detector, score_threshold = fit_detector(X_train, contamination=contamination)
+    _, X_calibration = transform_sensor_data(calibration_df, imputer, scaler)
+    detector = fit_detector(X_train, contamination=contamination)
+    score_threshold = calibrate_score_threshold(
+        detector,
+        X_calibration,
+        percentile=calibration_percentile,
+    )
     model_bundle: dict[str, Any] = {
         "model_version": MODEL_VERSION,
         "features": FEATURES,
@@ -57,9 +79,13 @@ def train_and_save_model(
         "detector": detector,
         "score_threshold": score_threshold,
         "contamination": contamination,
+        "calibration_percentile": calibration_percentile,
         "training_rows": len(training_df),
+        "calibration_rows": len(calibration_df),
         "training_seed": training_seed,
+        "calibration_seed": calibration_seed,
         "training_data_path": str(training_csv),
+        "calibration_data_path": str(calibration_csv),
     }
     model_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model_bundle, model_path)
@@ -82,22 +108,33 @@ def load_saved_model(
 
 
 def ensure_default_model() -> dict[str, Any]:
-    """Create the independent normal baseline/model once, then only load it."""
+    """Create the training/calibration data and model once, then only load it."""
     if DEFAULT_MODEL_PATH.exists():
-        return load_saved_model(DEFAULT_MODEL_PATH)
+        try:
+            return load_saved_model(DEFAULT_MODEL_PATH)
+        except ValueError:
+            # Rebuild an outdated default bundle after a pipeline version change.
+            pass
 
     DEFAULT_TRAINING_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if not DEFAULT_TRAINING_DATA_PATH.exists():
-        normal_data = generate_normal_sensor_data(
-            rows=DEFAULT_TRAINING_ROWS,
-            seed=DEFAULT_TRAINING_SEED,
-        )
-        normal_data.to_csv(DEFAULT_TRAINING_DATA_PATH, index=False)
+    training_data = generate_normal_sensor_data(
+        rows=DEFAULT_TRAINING_ROWS,
+        seed=DEFAULT_TRAINING_SEED,
+    )
+    training_data.to_csv(DEFAULT_TRAINING_DATA_PATH, index=False)
+    calibration_data = generate_normal_sensor_data(
+        rows=DEFAULT_CALIBRATION_ROWS,
+        seed=DEFAULT_CALIBRATION_SEED,
+    )
+    calibration_data.to_csv(DEFAULT_CALIBRATION_DATA_PATH, index=False)
     return train_and_save_model(
         DEFAULT_TRAINING_DATA_PATH,
         DEFAULT_MODEL_PATH,
+        calibration_csv=DEFAULT_CALIBRATION_DATA_PATH,
         contamination=DEFAULT_CONTAMINATION,
+        calibration_percentile=DEFAULT_CALIBRATION_PERCENTILE,
         training_seed=DEFAULT_TRAINING_SEED,
+        calibration_seed=DEFAULT_CALIBRATION_SEED,
     )
 
 

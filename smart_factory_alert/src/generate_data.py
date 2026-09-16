@@ -27,7 +27,7 @@ def _generate_normal_values(
 
 
 def generate_normal_sensor_data(
-    rows: int = 1000,
+    rows: int = 400,
     seed: int = 20240603,
 ) -> pd.DataFrame:
     """Generate an independent, normal-only baseline for model training."""

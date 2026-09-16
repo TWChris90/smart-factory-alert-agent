@@ -9,15 +9,30 @@ from pyod.models.knn import KNN
 def fit_detector(
     X: np.ndarray,
     contamination: float = 0.01,
-) -> tuple[KNN, float]:
-    """Fit KNN on independent normal training data and return its threshold."""
+) -> KNN:
+    """Fit KNN only on the independent normal training split."""
     detector = KNN(
         n_neighbors=5,
         contamination=contamination,
         n_jobs=-1,
     )
     detector.fit(X)
-    return detector, float(detector.threshold_)
+    return detector
+
+
+def calibrate_score_threshold(
+    detector: KNN,
+    X_calibration: np.ndarray,
+    percentile: float = 99.5,
+) -> float:
+    """Set the alert threshold from a separate normal calibration split."""
+    if not 0.0 < percentile <= 100.0:
+        raise ValueError("calibration percentile must be between 0 and 100")
+    calibration_scores = np.asarray(
+        detector.decision_function(X_calibration),
+        dtype=float,
+    )
+    return float(np.percentile(calibration_scores, percentile))
 
 
 def score_anomalies(
