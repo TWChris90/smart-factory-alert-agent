@@ -119,8 +119,8 @@ def _add_knn_context(alerts: list[dict], model_bundle: dict) -> None:
             sensor_labels.append(config["label"])
 
         alert["knn_reason_zh"] = (
-            "三項感測值都未超出固定異常門檻，但合併比較後，這組數值在正常訓練資料中較少見。"
-            f"主要差異：{'；'.join(detail_parts)}。"
+            "三項感測值都未超出固定異常門檻，但合併後的"
+            f"主要問題：{'；'.join(detail_parts)}。"
             f'組合分數 {alert["anomaly_score"]:.4f} > 判定門檻 {score_threshold:.4f}，'
             "因此標記為需要留意的組合型異常；這不代表已確認設備故障。"
         )
@@ -272,7 +272,7 @@ def _render_sensor_charts(df: pd.DataFrame, alerts: list[dict]) -> None:
 
 def main() -> None:
     """Render the browser UI."""
-    st.set_page_config(page_title="智慧工廠設備異常警告系統", layout="wide")
+    st.set_page_config(page_title="智慧工廠警告Agent", layout="wide")
     st.markdown(
         f"""
         <style>
@@ -291,7 +291,7 @@ def main() -> None:
         """,
         unsafe_allow_html=True,
     )
-    st.title("智慧工廠設備異常警告系統")
+    st.title("智慧工廠警告Agent")
 
     with st.sidebar:
         st.header("操作設定")
@@ -351,13 +351,6 @@ def main() -> None:
     training_rows = result.get("training_rows")
     calibration_rows = result.get("calibration_rows")
     missing_summary = result.get("missing_summary")
-
-    if training_rows is not None and calibration_rows is not None:
-        st.caption(
-            f"異常辨識模型已使用 {training_rows} 筆正常資料訓練，並使用另外 "
-            f"{calibration_rows} 筆正常資料校準門檻；"
-            "本次待測資料只做偵測，不參與模型訓練。"
-        )
 
     st.subheader("摘要")
     metric_count = 2 + int(missing_summary is not None) + int(score_threshold is not None)

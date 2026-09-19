@@ -9,6 +9,10 @@
 ```bash
 python -m pip install -r smart-factory-alert-agent/requirements.txt
 ```
+或是
+```bash
+streamlit run app.py --server.headless true --server.address 0.0.0.0
+```
 
 ## Browser UI
 
