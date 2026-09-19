@@ -1,6 +1,13 @@
 # Smart Factory Alert Agent
 
-智慧工廠感測器異常偵測警告示範專案。
+智慧工廠感測器異常偵測警告系統。
+
+## Dummy data
+
+存放於 
+```bash
+smart-factory-alert-agent\data
+```
 
 ## Setup
 

@@ -140,14 +140,94 @@ smart_factory_alert/data/*
 - Verified the normal-range bands, fixed-threshold lines, red-circle markers, and yellow-diamond markers against generated data and a controlled KNN-only case.
 - No files were deleted for this revision.
 
-## Independent Training and Persistent Model Revision
+## Model Training / Inference Separation Revision
 
-The KNN workflow now separates training from detection:
+### Goal
 
-1. Generate an independent normal-only baseline with its own fixed training seed.
-2. Fit the imputer, scaler, and KNN only on that baseline.
-3. Save those fitted objects and the learned score threshold in one joblib model.
-4. Load the saved model for all generated or uploaded detection data.
-5. Apply only `transform` and `decision_function` during detection; never fit on detection rows and never assume an initial normal segment.
+修正目前「每次偵測都使用待測資料重新 fit KNN」造成的資料洩漏問題，將 KNN 流程分成獨立的訓練階段與偵測階段：
 
-Simulated detection data keeps one-minute timestamps while anomaly positions, anomaly types, anomaly values, and missing values are controlled by the user-selected random seed.
+```text
+Independent Normal Training Data
+→ Preprocessing / Feature Transformation
+→ KNN Training
+→ Determine KNN Score Threshold
+→ Save Model + Preprocessing State
+                         ↓
+New Generated / Uploaded Data
+→ Load Saved Model + Preprocessing State
+→ Detection Only
+→ Existing Fixed-Threshold + KNN Alert Agent
+→ Current CLI / Browser UI
+```
+
+### Required Changes
+
+1. **獨立正常訓練資料**
+   - 建立與待測資料分離的正常資料集，僅供 KNN 建模。
+   - 訓練資料必須不含人工注入的異常樣本。
+   - 不以「資料前幾筆一定正常」作為任何訓練資料假設。
+   - 訓練資料的取得／建立方式需能由 random seed 重現。
+
+2. **KNN Training**
+   - 保留目前 PyOD `KNN` 演算法與既有 KNN 設定。
+   - KNN 只在獨立正常訓練資料上 `fit`。
+   - 由訓練資料取得 KNN anomaly score threshold。
+   - 保存可供後續 inference 使用的模型與必要 preprocessing state。
+
+3. **Detection / Inference**
+   - 上傳或產生的新資料只允許載入已保存的模型與 preprocessing state 進行偵測。
+   - 待測資料不得再次 `fit` KNN，也不得參與模型 threshold 建立。
+   - 不假設待測資料的前幾筆為正常。
+   - 保留現有 anomaly score、KNN label、固定門檻與 alert source 判斷方式。
+
+4. **Randomized Dummy Data**
+   - 異常值的位置、異常類型／sensor 分布與缺失值位置依 random seed 隨機產生。
+   - 不再使用固定的異常排列方式作為隱含資料結構。
+   - 相同 seed 必須可重現相同資料；不同 seed 應可得到不同但合理的異常／缺值分布。
+   - 正常資料與待測資料的產生都不得依賴「前 N 筆為正常」的假設。
+
+5. **Preserve Existing UI and Alert Behavior**
+   - 保留目前 Browser UI 與 CLI 的操作方式。
+   - 保留目前三張感測器圖、固定門檻視覺化，以及紅色圓點／黃色菱形語意。
+   - 保留 fixed-threshold 與 KNN alert source 的既有判斷邏輯；本 revision 只改變 KNN 的訓練／載入生命週期與資料邊界。
+   - 不新增 contamination 操作介面。
+
+### Planned File Changes
+
+依後續實作需要，僅規劃修改與 KNN lifecycle、資料產生／前處理整合及現有介面說明直接相關的檔案；不擴大到新的模型或新的 UI 功能。
+
+預期涉及：
+
+```text
+smart_factory_alert/
+├── src/generate_data.py        # 隨機異常／缺值分布，保留 seed 可重現性
+├── src/preprocess.py           # 讓 training / inference 共用保存的 preprocessing state
+├── src/pyod_detector.py        # 分離 train / save 與 load / detect；保留 KNN
+├── src/alert_agent.py          # 不改固定門檻與 alert 判斷邏輯；僅維持既有介面相容
+├── app.py                      # 沿用目前 UI；偵測改走保存模型的 inference flow
+├── README.md                   # 更新 training / inference 使用方式
+├── plan.md
+└── checklist.md
+```
+
+不加入新模型、contamination 控制、額外 dashboard、real-time streaming 或其他 plan 外改善。
+
+### Non-goals
+
+- 不更換 PyOD KNN。
+- 不重新設計固定門檻。
+- 不改變既有 fixed-threshold / KNN alert 判斷邏輯。
+- 不讓待測資料參與 KNN training 或 threshold determination。
+- 不以資料前幾筆正常作為訓練策略。
+- 不加入新的 UI 功能。
+
+### Implementation Order
+
+1. 定義獨立正常 training data 與 inference data 的資料邊界。
+2. 將 KNN `fit` 與 inference `detect` 分離。
+3. 在 training phase 決定並保存 KNN score threshold，以及必要 preprocessing state。
+4. 修改 dummy-data randomization，使異常與缺值分布由 seed 決定且不同 seed 可產生不同分布。
+5. 讓 CSV upload / generated data 只載入已保存模型進行 detection。
+6. 保留現有 fixed-threshold / alert-agent 與目前 Browser UI。
+7. 更新 README 說明 training / inference 流程。
+8. 實作完成後再依 checklist 執行驗證；本次規劃階段不改碼、不測試。
