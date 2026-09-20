@@ -6,7 +6,7 @@
 
 存放於 
 ```bash
-smart-factory-alert-agent\data
+data/sensor_data.csv
 ```
 
 ## Setup
@@ -14,12 +14,9 @@ smart-factory-alert-agent\data
 在 repository root 執行：
 
 ```bash
-python -m pip install -r smart-factory-alert-agent/requirements.txt
+python -m pip install -r requirements.txt
 ```
-或是
-```bash
-streamlit run app.py --server.headless true --server.address 0.0.0.0
-```
+
 
 ## Browser UI
 
@@ -27,6 +24,10 @@ streamlit run app.py --server.headless true --server.address 0.0.0.0
 
 ```bash
 streamlit run app.py
+```
+或是
+```bash
+streamlit run app.py --server.headless true --server.address 0.0.0.0
 ```
 
 瀏覽器介面支援兩種資料來源：
